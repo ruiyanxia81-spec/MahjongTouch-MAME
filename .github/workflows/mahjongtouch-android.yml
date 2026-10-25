@@ -1,0 +1,43 @@
+name: Mahjong Touch Android build probe
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'android-MAME4droid/**'
+      - '.github/workflows/mahjongtouch-android.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  android-debug:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android SDK and NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-37" "build-tools;37.0.0" "ndk;28.2.13676358"
+      - name: Verify Gradle wrapper
+        run: |
+          test -f android-MAME4droid/gradle/wrapper/gradle-wrapper.jar
+          test -f android-MAME4droid/gradle/wrapper/gradle-wrapper.properties
+      - name: Build debug APK (diagnostic)
+        working-directory: android-MAME4droid
+        run: bash ./gradlew --no-daemon --stacktrace assembleDebug
+      - name: Upload debug APK if produced
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mahjongtouch-upstream-debug-apk
+          path: android-MAME4droid/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
