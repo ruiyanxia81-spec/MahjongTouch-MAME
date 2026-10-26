@@ -1,0 +1,15 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'nz.kutartouch'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'nz.kutartouch.classics'
+        minSdk 29
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    base { archivesName = 'KutarTouch-0.1.0' }
+    androidResources { noCompress 'wasm', 'zip' }
+}
