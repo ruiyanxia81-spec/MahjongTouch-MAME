@@ -1,22 +1,21 @@
-# Kutar Touch 0.1.0 — compatibility experiment
+# Kutar Touch Native 0.2.0 — Chan basic-gameplay reconstruction
 
-A dedicated offline Android launcher for the exact three user-supplied Windows games Chan.exe, HipDance.exe and Endroll.exe. Uses Boxedwine 26R1 WebAssembly and Wine 6.0 to execute original x86 Windows game code. This is **not a native Android reimplementation**. The originals are not committed, distributed or bundled; users import their own copies. Imports are limited to the SHA-256 hashes of the supplied versions.
+This update responds to the user's report that the original-EXE compatibility build is extremely slow on their phone. The runtime has been removed. Android Canvas draws original imported sprites; time-based Java logic handles gameplay; MediaPlayer/SoundPool play imported audio. No Windows/x86/Wine/Boxedwine/WebView/WASM code runs in this version.
 
-- Independent package `nz.kutartouch.classics`, app name/icon and three-game launcher.
-- Chinese left/right mouse buttons, F5 Start, F7 Reset and Enter Confirm, full-window/zoom toggle, bounded startup log.
-- Configuration changes preserve the live WebView; a separate runtime process is ended on returning to the library. Phone fold continuity is not verified.
-- Runtime files are supplied offline in the APK, pinned by SHA-256 in `.github/workflows/kutar-android.yml`. WebView serves a strict local resource allowlist; no arbitrary remote pages, filesystem access or generic program launcher.
-- Browser fullscreen requests are suppressed so native/Web touch controls remain accessible.
-- Stable debug keystore cache for subsequent test builds; this is a testing APK, not production signing.
+## Honest scope
 
-## Validation and limits
+Only **Chan** is playable in this native prototype. HipDance and Endroll remain listed but disabled and explicitly labelled pending native rewrite. The other games' rules must be verified before reproducing them.
 
-All 74 embedded BMP/WAV resources were decoded and validated locally (25 Chan, 18 HipDance, 31 Endroll), establishing that original artwork/audio are present. Windows accelerator resources identify Start=F5 and Reset=F7. No decompiled game logic is substituted.
+Implemented: left/right attacks, enemies approaching from either side, distance-and-side hit checks, miss/contact game over, progressive speed, score/best score, original background/sprite/audio assets, title/start/restart, pause, sound toggle, layout changes preserving the active game state. Test aids show attack ranges and rendered FPS. Fixed logical viewport is 400×300, scaled to fit without changing aspect ratio.
 
-Desktop Chromium compatibility tests opened original game windows; HipDance reached gameplay after F5. Android compilation/package checks are separate from phone validation. First startup and emulation can be slow; animation speed, audio latency, simultaneous touches, saving, background/resume and OPPO Find N3 fold transitions must be tested on the phone. Embedded Wine menus can show incorrect Japanese text; original bitmap artwork is retained. The zoom assumes the original default 640×480 desktop and window position; use full-window mode for dialogs or if the crop is wrong.
+Game logic is reconstructed **basic gameplay**, not original source recovery. Spawn intervals, speed, hit ranges, score values and the simplified samurai encounters are provisional. Original duel timing, special characters/events, exact original animation composition and scoring calibration remain unfinished. Do not describe this as a finished faithful port. It needs phone testing and comparison with the Windows original.
 
-## Phone test
+The user still imports their original Chan.exe; existing 0.1 imports are reused. The importer verifies the known file SHA-256. The native asset decoder then reads the embedded resource table and BMP/WAV data without executing the EXE. No original game assets or EXEs are in this repository or APK. For future asset-parser changes, increment the cache directory revision.
 
-Install APK, import the original three EXEs (unmodified), select a game, wait for the title, then tap Start F5. On first launch a player-name dialog can appear; tap Confirm to accept the default and continue. Test both Left and Right, restart, and switching among games. Use Full window if a dialog appears outside the zoomed game region. Open Startup log and send a screenshot if startup fails. Compare speed and audio against Windows. Test folding and background/resume separately.
+## Validation
 
-See NOTICE.txt and the upstream pinned source/build links for the compatibility runtime. Existing Mahjong project code is untouched on its original development branch.
+CI independently checks title/start/restart, valid hit, wrong-side miss, empty/distant miss, contact loss, and movement/spawns at 60 vs 120 updates per second. Then it compiles the Android APK and checks package/launcher identity, small package size, and absence of the former runtime assets. These checks are not a measurement of phone FPS, audio support, sprite composition or input latency.
+
+Phone regression: launch native Chan; confirm title, background/character sprite alignment and sound; start and test both attack buttons; compare displayed FPS/input latency against the slow compatibility version; check pause/resume, screen rotation, fold/unfold, game over/restart and saved best score. Compare timing and special encounters with the Windows original before claiming gameplay parity.
+
+The app keeps `nz.kutartouch.classics` and increments versionCode to 2 / versionName 0.2.0. The workflow uses the same debug signing cache on the same branch so it should update the previous test app while retaining imported EXEs. No production signing is claimed.

@@ -1,15 +1,5 @@
-Kutar Touch is an unofficial personal compatibility frontend, not a native port or official Kutar release.
-Original Kutar games and artwork: GIGA-RENSYA. Games are imported by the user and are NOT included in this repository or APK.
-
-Boxedwine 26R1.0: GPL-2.0
-Source: https://github.com/danoon2/Boxedwine/tree/26R1.0
-Web runtime: https://github.com/danoon2/Boxedwine/releases/tag/26R1.0
-The build workflow pins the exact official Web ZIP SHA-256 and copies the SingleThreaded build without changes.
-The frontend disables deferred browser fullscreen requests in its own HTML so touch controls stay visible.
-Build instructions: https://github.com/danoon2/Boxedwine/blob/26R1.0/project/emscripten/buildInstructions.md
-
-Bundled compatibility filesystem: Wine 6.0 and its redistributable dependencies, from the above official web runtime ZIP.
-Wine: LGPL-2.1, https://gitlab.winehq.org/wine/wine/-/tree/wine-6.0
-Upstream runtime files include their copyright notices; the Wine filesystem retains its upstream bundled files.
-Source for this Android frontend: kutar/android-runtime branch of https://github.com/ruiyanxia81-spec/MahjongTouch-MAME (kutar-android/).
-The Android frontend is GPL-2.0-or-later. This project does not add restrictions to the upstream components' licences.
+Kutar Touch Native is an unofficial personal reconstruction experiment.
+Original Kutar games, artwork and sound: GIGA-RENSYA. They are not included in the APK or repository; assets are read from the user's imported original files.
+Android frontend source: GPL-2.0-or-later, https://github.com/ruiyanxia81-spec/MahjongTouch-MAME/tree/kutar/android-runtime/kutar-android
+Version 0.2.0 uses the Android platform renderer and audio APIs. It contains no Windows compatibility runtime.
+Reconstructed Chan gameplay is provisional and is not a complete recovery of the original game's logic.

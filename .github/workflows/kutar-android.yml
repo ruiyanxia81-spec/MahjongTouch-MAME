@@ -1,4 +1,4 @@
-name: Kutar Touch Android compatibility test
+name: Kutar Touch native Chan test
 on:
   push:
     branches: ['kutar/android-runtime']
@@ -9,24 +9,17 @@ permissions:
 jobs:
   apk:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - name: Prepare pinned offline Windows compatibility runtime
+      - name: Check native gameplay transitions and time-based movement
         run: |
-          curl --fail --location --retry 3 -o /tmp/boxedwine.zip https://github.com/danoon2/Boxedwine/releases/download/26R1.0/Boxedwine26R1Web.zip
-          echo 'ebc634e921f7c65980a7094f3efad84873cede8011eb7dd204446ff1de982945  /tmp/boxedwine.zip' | sha256sum --check
-          unzip -q /tmp/boxedwine.zip -d /tmp/boxedwine
-          DEST=kutar-android/app/src/main/assets/runtime
-          cp /tmp/boxedwine/SingleThreaded/boxedwine.js /tmp/boxedwine/SingleThreaded/boxedwine-shell.js /tmp/boxedwine/SingleThreaded/boxedwine.wasm /tmp/boxedwine/SingleThreaded/boxedwine.zip "$DEST/"
-          curl --fail --location -o "$DEST/LICENSE.txt" https://raw.githubusercontent.com/danoon2/Boxedwine/26R1.0/license.txt
-          cp kutar-android/NOTICE.txt "$DEST/NOTICE.txt"
-          test $(stat -c%s "$DEST/boxedwine.wasm") -gt 1000000
-          test $(stat -c%s "$DEST/boxedwine.zip") -gt 30000000
+          javac -d /tmp/native-rules kutar-android/app/src/main/java/nz/kutartouch/ChanState.java kutar-android/tools/NativeRulesCheck.java
+          java -cp /tmp/native-rules nz.kutartouch.NativeRulesCheck
       - uses: actions/cache@v4
         with:
           path: ~/.android/debug.keystore
@@ -34,15 +27,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build test APK
+      - name: Build native APK
         working-directory: kutar-android
         run: gradle --no-daemon --stacktrace assembleDebug
-      - name: Verify offline runtime and dedicated launcher in APK
+      - name: Verify independent APK with no compatibility runtime
         run: |
           APK=$(find kutar-android/app/build/outputs/apk/debug -name '*.apk' | head -n 1)
           unzip -t "$APK"
-          unzip -l "$APK" | grep 'assets/runtime/boxedwine.wasm'
-          unzip -l "$APK" | grep 'assets/runtime/boxedwine.zip'
+          if unzip -l "$APK" | grep -Ei 'boxedwine|wine\.zip|\.wasm|assets/runtime'; then exit 1; fi
+          test $(stat -c%s "$APK") -lt 3000000
           AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -n 1)
           "$AAPT" dump badging "$APK" > /tmp/apk-info.txt
           grep "package: name='nz.kutartouch.classics'" /tmp/apk-info.txt
@@ -50,7 +43,7 @@ jobs:
           sha256sum "$APK" > "$APK.sha256"
       - uses: actions/upload-artifact@v4
         with:
-          name: KutarTouch-0.1.0-compatibility-test
+          name: KutarTouch-Native-0.2.0-Chan-test
           path: |
             kutar-android/app/build/outputs/apk/debug/*.apk
             kutar-android/app/build/outputs/apk/debug/*.sha256

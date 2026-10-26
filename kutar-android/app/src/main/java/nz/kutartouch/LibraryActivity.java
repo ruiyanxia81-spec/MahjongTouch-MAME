@@ -36,13 +36,13 @@ public class LibraryActivity extends Activity {
     @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); setIntent(i); refresh(); }
     private void refresh() {
         list.removeAllViews();
-        TextView title=new TextView(this); title.setText("Kutar Touch"); title.setTextSize(30); title.setTextColor(Color.WHITE); list.addView(title);
-        TextView help=new TextView(this); help.setText("经典小游戏 · 原版 EXE 兼容运行测试版 0.1\n\n首次启动需要准备运行环境，请耐心等待。\n导入 Chan.exe、HipDance.exe、Endroll.exe，保持原文件内容。\n\n触屏左键 / 右键对应原版鼠标操作。开始 = F5，重置 = F7。此版本仍需手机验证速度、声音及折叠切换。\n"); help.setTextSize(16); help.setTextColor(Color.LTGRAY); list.addView(help);
+        TextView title=new TextView(this); title.setText("Kutar Touch · 原生测试版"); title.setTextSize(30); title.setTextColor(Color.WHITE); list.addView(title);
+        TextView help=new TextView(this); help.setText("原生重写测试版 0.2\n\nChan 已改为 Android 原生绘制与输入，不再运行 Windows 或模拟器。复用你导入 EXE 中的原版图片和音效。\n\n这是基础玩法重写：左右出剑、命中、空挥、碰撞和计分可测试。原版精确计时、完整武士对决、特殊事件尚未还原。\n\nHipDance 和 Endroll 尚未原生重写，本版不会启动它们。\n"); help.setTextSize(16); help.setTextColor(Color.LTGRAY); list.addView(help);
         Button imp=new Button(this); imp.setText(importing?"正在导入……":"导入三个 EXE 游戏"); imp.setEnabled(!importing); list.addView(imp);
         imp.setOnClickListener(v->{Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*").addCategory(Intent.CATEGORY_OPENABLE); i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true); startActivityForResult(i,7);});
-        for(int n=0;n<IDS.length;n++) { final String id=IDS[n]; Button play=new Button(this); boolean installed=gameFile(this,id).isFile(); play.setText(TITLES[n]+(installed?"  ·  启动":"  ·  未导入")); play.setEnabled(installed&&!importing); list.addView(play); play.setOnClickListener(v->startActivity(new Intent(this,GameActivity.class).putExtra("game",id))); }
+        for(int n=0;n<IDS.length;n++) { final String id=IDS[n]; Button play=new Button(this); boolean installed=gameFile(this,id).isFile(); play.setText(TITLES[n]+(id.equals("Chan")?(installed?"  ·  原生启动":"  ·  未导入"):"  ·  原生重写待完成")); play.setEnabled(id.equals("Chan")&&installed&&!importing); list.addView(play); play.setOnClickListener(v->startActivity(new Intent(this,GameActivity.class).putExtra("game",id))); }
         Button about=new Button(this); about.setText("关于 / 开源信息"); list.addView(about); about.setOnClickListener(v->new AlertDialog.Builder(this).setTitle("运行方式")
-            .setMessage("通过 Boxedwine 26R1 与 Wine 运行原版 Windows 程序；并非原生重写版。运行环境随安装包提供，离线运行。游戏需要用户导入，不随 APK 提供。\n\nBoxedwine: GPL-2.0\nhttps://github.com/danoon2/Boxedwine/tree/26R1.0\nWine: LGPL-2.1\nhttps://gitlab.winehq.org/wine/wine\n\nKutar 原作：GIGA-RENSYA。此为非官方个人兼容测试项目。源代码位于 MahjongTouch-MAME 仓库的 kutar/android-runtime 分支 / kutar-android 目录。")
+            .setMessage("本版使用 Android Canvas、MediaPlayer 和 SoundPool，未包含或运行 Boxedwine、Wine、WebView、WebAssembly 或 x86 模拟器。\n\nChan 游戏逻辑为基础重写，不是原版机器码的完整还原。图片和声音从用户导入的原 EXE 中读取，APK 不附带原作素材。\n\nKutar 原作：GIGA-RENSYA。非官方个人原生重写测试版。源代码：github.com/ruiyanxia81-spec/MahjongTouch-MAME 的 kutar/android-runtime 分支，kutar-android 目录。Android 前端源码为 GPL-2.0-or-later。")
             .setPositiveButton("确定",null).show());
     }
     @Override protected void onActivityResult(int request,int result,Intent data) {
