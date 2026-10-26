@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- App -->
-    <string name="app_name" translatable="false">MAME4droid (Current)</string>
+    <string name="app_name" translatable="false">Mahjong Touch</string>
     <string name="mame_version" translatable="false">0.289</string>
-    <string name="label_settings">MAME4droid Settings</string>
-    <string name="label_help">MAME4droid Help</string>
-    <string name="label_define_buttons">MAME4droid Define Buttons</string>
-    <string name="label_controller_buttons">MAME4droid Controller Buttons</string>
+    <string name="label_settings">Mahjong Touch Settings</string>
+    <string name="label_help">Mahjong Touch Help</string>
+    <string name="label_define_buttons">Mahjong Touch Define Buttons</string>
+    <string name="label_controller_buttons">Mahjong Touch Controller Buttons</string>
     <string name="label_select_key">Select Key</string>
 
     <!-- Common -->
