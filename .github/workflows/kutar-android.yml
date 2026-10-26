@@ -1,0 +1,50 @@
+name: Kutar Touch native Chan test
+on:
+  push:
+    branches: ['kutar/android-runtime']
+    paths: ['kutar-android/**', '.github/workflows/kutar-android.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Check native gameplay transitions and time-based movement
+        run: |
+          javac -d /tmp/native-rules kutar-android/app/src/main/java/nz/kutartouch/ChanState.java kutar-android/app/src/main/java/nz/kutartouch/PlayerMotion.java kutar-android/tools/NativeRulesCheck.java
+          java -cp /tmp/native-rules nz.kutartouch.NativeRulesCheck
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: kutartouch-debug-signing-v1
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build native APK
+        working-directory: kutar-android
+        run: gradle --no-daemon --stacktrace assembleDebug
+      - name: Verify independent APK with no compatibility runtime
+        run: |
+          APK=$(find kutar-android/app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          unzip -t "$APK"
+          if unzip -l "$APK" | grep -Ei 'boxedwine|wine\.zip|\.wasm|assets/runtime'; then exit 1; fi
+          test $(stat -c%s "$APK") -lt 3000000
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt | sort -V | tail -n 1)
+          "$AAPT" dump badging "$APK" > /tmp/apk-info.txt
+          grep "package: name='nz.kutartouch.classics'" /tmp/apk-info.txt
+          grep "launchable-activity: name='nz.kutartouch.LibraryActivity'" /tmp/apk-info.txt
+          sha256sum "$APK" > "$APK.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KutarTouch-Native-0.2.1-Chan-test
+          path: |
+            kutar-android/app/build/outputs/apk/debug/*.apk
+            kutar-android/app/build/outputs/apk/debug/*.sha256
+          if-no-files-found: error

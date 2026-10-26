@@ -1,0 +1,5 @@
+Kutar Touch Native is an unofficial personal reconstruction experiment.
+Original Kutar games, artwork and sound: GIGA-RENSYA. They are not included in the APK or repository; assets are read from the user's imported original files.
+Android frontend source: GPL-2.0-or-later, https://github.com/ruiyanxia81-spec/MahjongTouch-MAME/tree/kutar/android-runtime/kutar-android
+Version 0.2.0 uses the Android platform renderer and audio APIs. It contains no Windows compatibility runtime.
+Reconstructed Chan gameplay is provisional and is not a complete recovery of the original game's logic.
