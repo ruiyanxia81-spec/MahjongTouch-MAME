@@ -18,7 +18,7 @@ jobs:
           java-version: '17'
       - name: Check native gameplay transitions and time-based movement
         run: |
-          javac -d /tmp/native-rules kutar-android/app/src/main/java/nz/kutartouch/ChanState.java kutar-android/tools/NativeRulesCheck.java
+          javac -d /tmp/native-rules kutar-android/app/src/main/java/nz/kutartouch/ChanState.java kutar-android/app/src/main/java/nz/kutartouch/PlayerMotion.java kutar-android/tools/NativeRulesCheck.java
           java -cp /tmp/native-rules nz.kutartouch.NativeRulesCheck
       - uses: actions/cache@v4
         with:
@@ -43,7 +43,7 @@ jobs:
           sha256sum "$APK" > "$APK.sha256"
       - uses: actions/upload-artifact@v4
         with:
-          name: KutarTouch-Native-0.2.0-Chan-test
+          name: KutarTouch-Native-0.2.1-Chan-test
           path: |
             kutar-android/app/build/outputs/apk/debug/*.apk
             kutar-android/app/build/outputs/apk/debug/*.sha256

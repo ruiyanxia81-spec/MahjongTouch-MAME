@@ -9,6 +9,7 @@ import java.util.*;
 
 final class ChanView extends View {
     final ChanState state=new ChanState();
+    private final PlayerMotion motion=new PlayerMotion();
     private final GameAssets assets;
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
     private final Rect src=new Rect();private final RectF dst=new RectF();
@@ -23,14 +24,15 @@ final class ChanView extends View {
         try{music=new MediaPlayer();music.setAudioAttributes(new AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_GAME).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build());music.setDataSource(new File(a.directory,"bgm.wav").getPath());music.setLooping(true);music.setVolume(.45f,.45f);music.prepare();}catch(Exception e){if(music!=null)music.release();music=null;}
     }
     private void effect(String name){Integer id=soundIds.get(name);if(sound&&id!=null&&loaded.contains(id))sounds.play(id,1,1,1,0,1);}
-    void start(){state.start();paused=false;recorded=false;last=0;effect("go");syncMusic();postInvalidateOnAnimation();}
-    void strike(int side){if(paused||suspended)return;int result=state.strike(side);if(result>0){effect(result>1?"hit2":"hit");}else if(result<0){effect("swing");effect("over");syncMusic();}invalidate();}
+    void start(){state.start();motion.reset();paused=false;recorded=false;last=0;effect("go");syncMusic();postInvalidateOnAnimation();}
+    void strike(int side){if(paused||suspended||state.mode!=ChanState.Mode.PLAYING)return;motion.attack(side);int result=state.strike(side);if(result>0){effect(result>1?"hit2":"hit");}else if(result<0){effect("swing");effect("over");syncMusic();}invalidate();}
     boolean togglePause(){paused=!paused;last=0;syncMusic();postInvalidateOnAnimation();return paused;}
     boolean toggleSound(){sound=!sound;syncMusic();return sound;}
     void suspend(boolean value){suspended=value;last=0;syncMusic();if(!value)postInvalidateOnAnimation();}
     private void syncMusic(){if(music==null)return;boolean play=sound&&!paused&&!suspended&&state.mode==ChanState.Mode.PLAYING;try{if(play&&!music.isPlaying())music.start();else if(!play&&music.isPlaying())music.pause();}catch(IllegalStateException ignored){}}
     @Override protected void onDraw(Canvas c){
         super.onDraw(c);long now=SystemClock.elapsedRealtimeNanos();double dt=last==0?0:Math.min(.05,(now-last)/1e9);last=now;
+        if(!paused&&!suspended&&(state.mode==ChanState.Mode.PLAYING||motion.swinging()))motion.step(dt);
         if(!paused&&!suspended&&state.mode==ChanState.Mode.PLAYING){while(dt>0){double step=Math.min(dt,1.0/120);state.step(step);dt-=step;}if(state.mode==ChanState.Mode.OVER){effect("over");syncMusic();}}
         if(state.mode==ChanState.Mode.OVER&&!recorded){recorded=true;best=Math.max(best,state.score);getContext().getSharedPreferences("native-scores",0).edit().putInt("chan",best).apply();}
         frames++;if(fpsStart==0)fpsStart=now;if(now-fpsStart>=1_000_000_000L){fps=(int)(frames*1e9/(now-fpsStart));frames=0;fpsStart=now;}
@@ -43,10 +45,10 @@ final class ChanView extends View {
             // Subtle range marks are an aid in this test build, not original artwork.
             paint.setColor(0x77885930);paint.setStrokeWidth(1);c.drawLine(97,278,167,278,paint);c.drawLine(233,278,303,278,paint);
             for(ChanState.Enemy e:state.enemies)enemy(c,e);player(c);
-            if(state.mode==ChanState.Mode.OVER){paint.setColor(0xb51d1b30);c.drawRect(0,0,400,300,paint);text(c,"游戏结束",200,123,27,Color.WHITE);text(c,state.message,200,153,15,Color.rgb(255,222,150));text(c,"得分 "+state.score+" · 点开始重来",200,183,17,Color.WHITE);}
+            if(state.mode==ChanState.Mode.OVER&&!motion.swinging()){paint.setColor(0xb51d1b30);c.drawRect(0,0,400,300,paint);text(c,"游戏结束",200,123,27,Color.WHITE);text(c,state.message,200,153,15,Color.rgb(255,222,150));text(c,"得分 "+state.score+" · 点开始重来",200,183,17,Color.WHITE);}
             else if(paused){paint.setColor(0xb51d1b30);c.drawRect(0,0,400,300,paint);text(c,"已暂停",200,160,28,Color.WHITE);}
             else text(c,state.message,200,298,10,Color.rgb(60,43,23));
-        }c.restore();if(!paused&&!suspended&&state.mode==ChanState.Mode.PLAYING)postInvalidateOnAnimation();
+        }c.restore();if(!paused&&!suspended&&(state.mode==ChanState.Mode.PLAYING||motion.swinging()))postInvalidateOnAnimation();
     }
     private void enemy(Canvas c,ChanState.Enemy e){
         float x=(float)e.x;int frame=(int)(state.elapsed*9)%5;
@@ -54,13 +56,24 @@ final class ChanView extends View {
         else {int color=e.skin%5;int pose=(int)(state.elapsed*3)%3;draw(c,assets.image("samurai1"),pose*131,color*146,pose*131+130,color*146+145,x-40,163,x+40,253);draw(c,assets.image("samurai1"),frame*75,731+color%3*53,frame*75+74,783+color%3*53,x-22,252,x+23,284);}
     }
     private void player(Canvas c){
-        Bitmap p=assets.image("kutar");int body=(int)(state.elapsed*4)%2;
-        draw(c,p,body*73,520,body*73+72,605,175,184,225,244);
-        draw(c,p,145,520,216,565,175,244,225,276);
+        Bitmap p=assets.image("kutar");float strength=motion.power();
+        float bob=(float)Math.sin(motion.clock*9)*2.4f;
+        c.save();c.translate(motion.side*strength*7,bob-strength*2);c.rotate(motion.side*strength*7,200,271);
+        // Use all original torso/leg poses, rather than the previous frozen legs.
+        int body=motion.bodyRow(),facing=motion.side>0?1:0,legs=motion.legsRow();
+        draw(c,p,facing*73,520+body*87,facing*73+71,605+body*87,175,184,225,244);
+        draw(c,p,145,520+legs*47,216,565+legs*47,175,244,225,276);
         draw(c,p,280,0,357,52,176,172,224,204);
-        int left=1,right=1;if(state.slashAge<.22){int row=(int)(state.slashAge/.22*4);if(state.slashSide<0)left=Math.min(3,row);else right=Math.min(3,row);}
+        int left=1,right=1;if(motion.swinging()){if(motion.side<0)left=motion.swordRow();else right=motion.swordRow();}
+        if(motion.swinging()){
+            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(5);
+            paint.setColor(Color.argb((int)(150*(1-motion.age/.34)),113,239,255));
+            dst.set(motion.side<0?83:197,116,motion.side<0?203:317,253);
+            c.drawArc(dst,motion.side<0?140:270,110,false,paint);paint.setStyle(Paint.Style.FILL);
+        }
         draw(c,p,0,left*130,136,left*130+129,108,124,201,216);
         draw(c,p,137,right*130,279,right*130+129,199,124,296,216);
+        c.restore();
     }
     private void draw(Canvas c,Bitmap b,int l,int t,int r,int bottom,float x,float y,float right,float down){if(b==null)return;src.set(l,t,Math.min(r,b.getWidth()),Math.min(bottom,b.getHeight()));dst.set(x,y,right,down);paint.setAlpha(255);c.drawBitmap(b,src,dst,paint);}
     private void text(Canvas c,String value,float x,float y,float size,int color){text(c,value,x,y,size,color,true);paint.setTextAlign(Paint.Align.CENTER);}

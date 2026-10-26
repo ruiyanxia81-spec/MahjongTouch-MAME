@@ -15,6 +15,12 @@ public class NativeRulesCheck {
         for(int n=0;n<120;n++)a.step(1.0/60);for(int n=0;n<240;n++)b.step(1.0/120);
         check(a.enemies.size()==b.enemies.size(),"time-based spawn count independent of render rate");
         check(Math.abs(a.enemies.get(0).x-b.enemies.get(0).x)<2,"time-based movement independent of render rate");
-        System.out.println("Native game state checks passed");
+        PlayerMotion motion=new PlayerMotion();motion.attack(-1);check(motion.swinging(),"attack starts visual animation");
+        int first=motion.swordRow();motion.step(.1);check(motion.swordRow()!=first,"sword pose must visibly change");
+        motion.step(.25);check(!motion.swinging(),"miss animation ends before game-over overlay");
+        motion.attack(1);check(motion.side==1&&motion.age==0,"opposite attack starts new animation");
+        int body=motion.bodyRow();motion.step(.2);check(motion.bodyRow()!=body,"idle torso cycles original sprite poses");
+        motion.reset();check(!motion.swinging(),"restart resets pending animation");
+        System.out.println("Native game state and character animation checks passed");
     }
 }

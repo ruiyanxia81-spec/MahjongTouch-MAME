@@ -1,3 +1,7 @@
+## 0.2.1 character feedback update
+
+Cycles original torso/leg poses and adds idle bob/attack lean. Uses an independent visual clock to finish a 340 ms sword swing even when an empty swing has already ended the logical round; the game-over overlay waits for the animation. Adds directional slash feedback. Pause/background suspend visual time. These animations are a reconstruction, not verified original motion timing. CI covers pose progression, direction/retrigger and reset as well as existing gameplay rules. Phone visual verification remains required.
+
 # Kutar Touch Native 0.2.0 — Chan basic-gameplay reconstruction
 
 This update responds to the user's report that the original-EXE compatibility build is extremely slow on their phone. The runtime has been removed. Android Canvas draws original imported sprites; time-based Java logic handles gameplay; MediaPlayer/SoundPool play imported audio. No Windows/x86/Wine/Boxedwine/WebView/WASM code runs in this version.
