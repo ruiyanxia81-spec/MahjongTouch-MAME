@@ -4,7 +4,7 @@
 </style></head><body>
 <div id="statusline">正在启动原版游戏，请稍候……</div>
 <div id="view"><div id="stage"><canvas id="canvas" tabindex="0" oncontextmenu="event.preventDefault()"></canvas></div></div>
-<div class="bar"><button id="startgame">开始 F5</button><button id="resetgame">重置 F7</button><button id="toggleview">完整窗口</button><button id="togglelog">启动日志</button></div>
+<div class="bar"><button id="startgame">开始 F5</button><button id="resetgame">重置 F7</button><button id="confirmgame">确认</button><button id="toggleview">完整窗口</button><button id="togglelog">启动日志</button></div>
 <div class="bar"><button class="action" id="left">左键</button><button class="action" id="right">右键</button></div>
 <div id="debug"><textarea id="output" readonly></textarea></div>
 <div id="compat"><div id="loading"><div id="spinner"></div><span id="status"></span><progress id="progress"></progress></div><div id="dropzone"></div><button id="startbtn"></button><span id="sound-checkbox"><input id="soundToggle" type="checkbox" checked></span><input id="showConsole" type="checkbox"><button id="uploadbtn"></button><button id="downloadbtn"></button></div>
@@ -18,9 +18,9 @@ function fit(){const w=stage.classList.contains('full')?640:400,h=stage.classLis
 new ResizeObserver(fit).observe(view);fit();
 function audioUnlock(){try{if(typeof SDL2!=='undefined'&&SDL2.audioContext)SDL2.audioContext.resume();if(Module.SDL2&&Module.SDL2.audioContext)Module.SDL2.audioContext.resume()}catch(e){}}
 function mouse(button,down){audioUnlock();canvas.focus();const r=canvas.getBoundingClientRect();const options={bubbles:true,cancelable:true,button,buttons:mouseMask,clientX:r.left+r.width*.5,clientY:r.top+r.height*.57};canvas.dispatchEvent(new MouseEvent('mousemove',options));canvas.dispatchEvent(new MouseEvent(down?'mousedown':'mouseup',options))}
-function keyboard(code,down){canvas.focus();const name=code===116?'F5':'F7';canvas.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{key:name,code:name,keyCode:code,which:code,bubbles:true,cancelable:true}))}
+function keyboard(code,down){canvas.focus();const name=code===13?'Enter':code===116?'F5':'F7';canvas.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{key:name,code:name,keyCode:code,which:code,bubbles:true,cancelable:true}))}
 for(const [id,button,mask] of [['left',0,1],['right',2,2]]){const b=document.getElementById(id);b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);mouseMask|=mask;b.classList.add('down');mouse(button,true)};const up=e=>{e.preventDefault();mouseMask&=~mask;b.classList.remove('down');mouse(button,false)};b.onpointerup=up;b.onpointercancel=up;b.onlostpointercapture=()=>{if(mouseMask&mask){mouseMask&=~mask;mouse(button,false);b.classList.remove('down')}}}
-for(const [id,code] of [['startgame',116],['resetgame',118]])document.getElementById(id).onclick=()=>{audioUnlock();keyboard(code,true);keysHeld.add(code);setTimeout(()=>{keyboard(code,false);keysHeld.delete(code)},90)};
+for(const [id,code] of [['startgame',116],['resetgame',118],['confirmgame',13]])document.getElementById(id).onclick=()=>{audioUnlock();keyboard(code,true);keysHeld.add(code);setTimeout(()=>{keyboard(code,false);keysHeld.delete(code)},90)};
 function releaseControls(){for(const [button,mask] of [[0,1],[2,2]])if(mouseMask&mask){mouseMask&=~mask;mouse(button,false)}for(const k of keysHeld)keyboard(k,false);keysHeld.clear();document.querySelectorAll('.down').forEach(b=>b.classList.remove('down'))}
 window.addEventListener('blur',releaseControls);document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseControls()});
 document.getElementById('toggleview').onclick=()=>{stage.classList.toggle('full');document.getElementById('toggleview').textContent=stage.classList.contains('full')?'游戏放大':'完整窗口';fit()};
