@@ -234,6 +234,15 @@ public class MAME4droid extends Activity {
 	}
 
 
+    public void returnToMahjongLibrary() {
+        if (mahjongPanel != null) mahjongPanel.releaseAll();
+        // Explicit navigation also works if Android has reclaimed the old launcher.
+        startActivity(new Intent(this, com.seleuco.mame4droid.mahjong.MahjongLibrary.class)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        finish();
+        android.os.Process.killProcess(android.os.Process.myPid());
+    }
+
     @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
         if (event.getKeyCode() == android.view.KeyEvent.KEYCODE_BACK) {
             if (event.getAction() == android.view.KeyEvent.ACTION_UP && mahjongPanel != null) mahjongPanel.leave();

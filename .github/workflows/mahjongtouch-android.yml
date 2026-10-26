@@ -2,8 +2,6 @@ name: Mahjong Touch APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: ['mahjongtouch/standalone-brand']
   pull_request:
     paths:
       - 'android-MAME4droid/**'
@@ -66,7 +64,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: MahjongTouch-0.7.0-arm64-test
+          name: MahjongTouch-0.7.1-arm64-test
           path: |
             android-MAME4droid/app/build/outputs/apk/debug/*.apk
             android-MAME4droid/app/build/outputs/apk/debug/*.sha256

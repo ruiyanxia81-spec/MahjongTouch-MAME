@@ -26,14 +26,15 @@ public final class MahjongPanel extends LinearLayout {
             for(int col=0;col<7;col++) { int n=row*7+col; key(line, String.valueOf((char)('A'+n)), KeyEvent.KEYCODE_A+n); }
         }
         LinearLayout actions = row();
-        key(actions,"Chi",KeyEvent.KEYCODE_SPACE); key(actions,"Pon",KeyEvent.KEYCODE_ALT_LEFT);
-        key(actions,"Kan",KeyEvent.KEYCODE_CTRL_LEFT); key(actions,"Riichi",KeyEvent.KEYCODE_SHIFT_LEFT);
-        key(actions,"Win",KeyEvent.KEYCODE_Z); key(actions,"Coin",KeyEvent.KEYCODE_5); key(actions,"Start",KeyEvent.KEYCODE_1);
+        key(actions,"吃",KeyEvent.KEYCODE_SPACE); key(actions,"碰",KeyEvent.KEYCODE_ALT_LEFT);
+        key(actions,"杠",KeyEvent.KEYCODE_CTRL_LEFT); key(actions,"立直",KeyEvent.KEYCODE_SHIFT_LEFT);
+        key(actions,"和牌",KeyEvent.KEYCODE_Z); key(actions,"投币",KeyEvent.KEYCODE_5); key(actions,"开始",KeyEvent.KEYCODE_1);
         LinearLayout utility = row();
-        Button library = button(utility,"Games"); library.setOnClickListener(v -> leave());
+        Button library = button(utility,"换游戏"); library.setOnClickListener(v -> leave());
         key(utility,"←",KeyEvent.KEYCODE_DPAD_LEFT); key(utility,"↑",KeyEvent.KEYCODE_DPAD_UP);
         key(utility,"↓",KeyEvent.KEYCODE_DPAD_DOWN); key(utility,"→",KeyEvent.KEYCODE_DPAD_RIGHT);
-        key(utility,"OK",KeyEvent.KEYCODE_ENTER);
+        key(utility,"确认",KeyEvent.KEYCODE_ENTER);
+        key(utility,"下注",KeyEvent.KEYCODE_3);
     }
     private LinearLayout row() {
         LinearLayout r = new LinearLayout(getContext());
@@ -81,10 +82,10 @@ public final class MahjongPanel extends LinearLayout {
     }
     public void leave() {
         releaseAll();
-        new AlertDialog.Builder(activity).setTitle("Return to Mahjong games?")
-            .setMessage("This ends the current game. Unsaved progress will be lost.")
-            .setPositiveButton("Games",(d,w) -> { activity.finish(); android.os.Process.killProcess(android.os.Process.myPid()); })
-            .setNegativeButton("Keep playing",null).show();
+        new AlertDialog.Builder(activity).setTitle("更换游戏？")
+            .setMessage("将结束当前游戏并返回麻将游戏列表。当前未保存的进度会丢失。")
+            .setPositiveButton("换游戏",(d,w) -> { activity.returnToMahjongLibrary(); })
+            .setNegativeButton("继续游戏",null).show();
     }
     @Override protected void onDetachedFromWindow() { releaseAll(); super.onDetachedFromWindow(); }
 }

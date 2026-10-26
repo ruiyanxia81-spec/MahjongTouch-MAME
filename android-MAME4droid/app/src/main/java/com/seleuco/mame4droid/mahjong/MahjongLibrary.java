@@ -26,7 +26,7 @@ public class MahjongLibrary extends Activity {
     public static File roms(Activity a) { return new File(a.getFilesDir(), "MahjongTouch/roms"); }
     // Conservative catalogue: dependency archives and unrelated arcade games cannot launch.
     public static final Set<String> GAMES = Collections.unmodifiableSet(new HashSet<>(Arrays.asList(
-        "mjelctrn", "mjelct3", "mjelct3a", "mjdialq2", "mjcamera", "mjcamerb",
+        "xymg", "mjelctrn", "mjelct3", "mjelct3a", "mjdialq2", "mjcamera", "mjcamerb",
         "mjfocus", "mjfocusm", "mjgottub", "mjsikaku", "mjsikakb", "mjsikakc",
         "mjvanilla", "mjgarden", "mjstory", "mjyougo", "telmahjn", "tokimbsj",
         "togenkyo", "otonano", "housemnq", "housemn2", "seiha", "seiham",
@@ -40,14 +40,15 @@ public class MahjongLibrary extends Activity {
         scroll.addView(list); root.addView(scroll); setContentView(root);
         roms(this).mkdirs(); refresh();
     }
+    @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); refresh(); }
     private void refresh() {
         list.removeAllViews();
-        TextView title = new TextView(this); title.setText("Mahjong Touch · 0.7 test");
+        TextView title = new TextView(this); title.setText("Mahjong Touch · 0.7.1 测试版");
         title.setTextColor(Color.WHITE); title.setTextSize(28); list.addView(title);
         TextView help = new TextView(this);
-        help.setText("Import your Mahjong ROM ZIP and all required parent / BIOS / sound ZIPs together. Keep their original filenames.\n\nOnly recognised Mahjong games appear below. Other ZIPs are retained as dependencies. ROM compatibility is checked by MAME when you start a game.\n\nFor mjelctrn, import mjelctrn.zip and the dependencies required by your ROM set (including ym2413.zip if requested). This build uses MAME 0.289.\n");
+        help.setText("导入你自己的麻将 ROM ZIP，以及需要的父 ROM、BIOS 或声音依赖 ZIP。保持原文件名，不要解压。\n\n下方只显示已识别的麻将游戏；其他 ZIP 将保留为依赖文件。运行后点击“换游戏”返回此列表，再选择其他游戏。\n\n幸运满贯：导入 xymg.zip 后，点击“幸运满贯”即可启动。当前使用 MAME 0.289。\n");
         help.setTextColor(Color.LTGRAY); help.setTextSize(16); list.addView(help);
-        importer = new Button(this); importer.setText("Import ROM / dependency ZIPs"); list.addView(importer);
+        importer = new Button(this); importer.setText("导入游戏 / 依赖 ZIP"); list.addView(importer);
         importer.setOnClickListener(v -> {
             Intent i = new Intent(Intent.ACTION_OPEN_DOCUMENT).setType("*/*");
             i.addCategory(Intent.CATEGORY_OPENABLE); i.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
@@ -61,17 +62,17 @@ public class MahjongLibrary extends Activity {
             String id = f.getName().substring(0, f.getName().length()-4);
             if (!GAMES.contains(id)) continue;
             count++;
-            Button game = new Button(this); game.setText("Play  ·  " + id); list.addView(game);
+            Button game = new Button(this); game.setText("开始游戏 · " + (id.equals("xymg") ? "幸运满贯 (xymg)" : id)); list.addView(game);
             game.setOnClickListener(v -> startActivity(new Intent(this, MAME4droid.class)
                 .setAction(Intent.ACTION_VIEW).setData(Uri.fromFile(f))));
         }
-        status.setText(count + " Mahjong game(s) · " + files.length + " ZIP(s) stored\n");
-        Button catalogue = new Button(this); catalogue.setText("Supported ROM names / help"); list.addView(catalogue);
+        status.setText(count + " 个麻将游戏 · 已保存 " + files.length + " 个 ZIP\n");
+        Button catalogue = new Button(this); catalogue.setText("支持的游戏 / 帮助"); list.addView(catalogue);
         catalogue.setOnClickListener(v -> {
             ArrayList<String> names = new ArrayList<>(GAMES); Collections.sort(names);
-            new AlertDialog.Builder(this).setTitle("Initial Mahjong catalogue")
-                .setMessage(String.join(", ", names) + "\n\nThis is a restricted initial catalogue, not every MAME Mahjong game. Imported files with other names are kept as dependencies. Use matching MAME 0.289 ROM sets.\n\nThe app is based on the GPL MAME4droid frontend and MAME core. Source: github.com/ruiyanxia81-spec/MahjongTouch-MAME")
-                .setPositiveButton("OK", null).show();
+            new AlertDialog.Builder(this).setTitle("麻将游戏目录")
+                .setMessage(String.join(", ", names) + "\n\n这是受限的麻将游戏目录。其他文件名的 ZIP 会保留为依赖，请使用匹配 MAME 0.289 的 ROM。\n\n本应用基于 GPL MAME4droid 前端及 MAME 核心。源代码： github.com/ruiyanxia81-spec/MahjongTouch-MAME")
+                .setPositiveButton("确定", null).show();
         });
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
@@ -80,7 +81,7 @@ public class MahjongLibrary extends Activity {
         ArrayList<Uri> uris = new ArrayList<>();
         if (data.getClipData() != null) for(int n=0;n<data.getClipData().getItemCount();n++) uris.add(data.getClipData().getItemAt(n).getUri());
         else if (data.getData() != null) uris.add(data.getData());
-        importer.setEnabled(false); status.setText("Importing…");
+        importer.setEnabled(false); status.setText("正在导入……");
         io.execute(() -> {
             int count = 0; StringBuilder errors = new StringBuilder();
             for (Uri uri : uris) {
@@ -104,8 +105,8 @@ public class MahjongLibrary extends Activity {
                 } catch(Exception e) { errors.append(e.getMessage()).append('\n'); }
                 finally { if(temp != null) temp.delete(); }
             }
-            final String message = "Imported " + count + " ZIP(s).\n" + errors;
-            runOnUiThread(() -> { if(!isFinishing() && !isDestroyed()) { refresh(); new AlertDialog.Builder(this).setMessage(message).setPositiveButton("OK",null).show(); } });
+            final String message = "已导入 " + count + " 个 ZIP。\n" + errors;
+            runOnUiThread(() -> { if(!isFinishing() && !isDestroyed()) { refresh(); new AlertDialog.Builder(this).setMessage(message).setPositiveButton("确定",null).show(); } });
         });
     }
     @Override protected void onDestroy() { io.shutdown(); super.onDestroy(); }

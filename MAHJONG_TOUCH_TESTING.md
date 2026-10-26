@@ -1,3 +1,12 @@
+# 0.7.1 update
+
+- User confirmed 0.7.0 can run a game on their phone. This does not verify every ROM or fold transition.
+- Added xymg (幸运满贯) to the game catalogue. The uploaded archive passed ZIP integrity and all four required files matched MAME 0.289 CRC/SHA-1 definitions in src/mame/igs/igs011.cpp. This is archive verification, not an on-device boot test. No uploaded ROM is committed or bundled.
+- Added 下注 (Bet), mapped to MAME keyboard 3; A–N remain unchanged. Other controls now read 吃、碰、杠、立直、和牌、投币、开始、换游戏、确认.
+- Switching games explicitly opens/reuses the launcher and refreshes its list, including after Android reclaimed the original launcher; engine completion takes the same route. A fresh engine process is used for each next game. Progress in the old game is not preserved.
+- Removed duplicate push builds; PR updates still automatically build and verify the APK.
+- Phone regression: import xymg.zip; launch 幸运满贯; test 投币、下注、开始 and tile actions. Use 换游戏 to switch to mjelctrn and back. Test both the visible button and Android Back. Build/package verification does not verify these behaviours on the phone.
+
 # Mahjong Touch 0.7.0 test build
 
 This continues `mahjongtouch/standalone-brand` / PR #2. It is a dedicated Android Mahjong frontend using the existing MAME4droid JNI and MAME 0.289 core, not a new emulator core.
