@@ -1054,8 +1054,7 @@ public class Emulator {
 				}
 				mm.runOnUiThread(new Runnable() {
 					public void run() {
-						mm.finishAndRemoveTask();
-						android.os.Process.killProcess(android.os.Process.myPid());
+						mm.returnToMahjongLibrary();
 					}
 				});
 			}

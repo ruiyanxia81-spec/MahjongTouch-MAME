@@ -80,6 +80,7 @@ import java.util.List;
 
 public class MAME4droid extends Activity {
 
+	private com.seleuco.mame4droid.mahjong.MahjongPanel mahjongPanel;
 	protected View emuView = null;
 
 	protected InputView inputView = null;
@@ -148,7 +149,11 @@ public class MAME4droid extends Activity {
 
 		super.onCreate(savedInstanceState);
 
-		//android.os.Debug.waitForDebugger();
+		// Only the private Mahjong launcher can select a recognised game.
+        android.net.Uri selected = getIntent().getData();
+        String game = selected == null ? "" : new java.io.File(selected.getPath()).getName().replaceFirst("\\.zip$", "");
+        if (!com.seleuco.mame4droid.mahjong.MahjongLibrary.GAMES.contains(game)) { finish(); return; }
+        getIntent().putExtra("cli_params", "-skip_gameinfo -ui simple");
 
 		Log.d("EMULATOR", "onCreate " + this);
 		System.out.println("onCreate intent:" + getIntent().getAction());
@@ -157,6 +162,15 @@ public class MAME4droid extends Activity {
 		getWindow().setWindowAnimations(0);
 
 		prefsHelper = new PrefsHelper(this);
+        String home = new java.io.File(getFilesDir(), "MahjongTouch").getAbsolutePath() + "/";
+        prefsHelper.setInstallationDIR(home);
+        prefsHelper.setROMsDIR("");
+        prefsHelper.setSAF_Uri(null);
+        prefsHelper.getSharedPreferences().edit()
+            .putBoolean(PrefsHelper.PREF_PORTRAIT_TOUCH_CONTROLLER, false)
+            .putBoolean(PrefsHelper.PREF_LANDSCAPE_TOUCH_CONTROLLER, false)
+            .putBoolean(PrefsHelper.PREF_PORTRAIT_FULLSCREEN, false)
+            .putString(PrefsHelper.PREF_ORIENTATION, "0").commit();
 
 		dialogHelper = new DialogHelper(this);
 
@@ -181,7 +195,7 @@ public class MAME4droid extends Activity {
 		/* Wake the board server now rather than when the netplay dialog opens:
 		 * a free instance takes tens of seconds to come back, and by then it
 		 * is up. Consent-gated and throttled inside. */
-		com.seleuco.mame4droid.helpers.LobbySession.wakeServer(this);
+		// Dedicated local Mahjong session; no lobby connection.
 
 		String uri = getPrefsHelper().getSAF_Uri();
 		if (uri != null) {
@@ -219,6 +233,25 @@ public class MAME4droid extends Activity {
 		}
 	}
 
+
+    public void returnToMahjongLibrary() {
+        if (mahjongPanel != null) mahjongPanel.releaseAll();
+        // Explicit navigation also works if Android has reclaimed the old launcher.
+        startActivity(new Intent(this, com.seleuco.mame4droid.mahjong.MahjongLibrary.class)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP));
+        finish();
+        android.os.Process.killProcess(android.os.Process.myPid());
+    }
+
+    @Override public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        if (event.getKeyCode() == android.view.KeyEvent.KEYCODE_BACK) {
+            if (event.getAction() == android.view.KeyEvent.ACTION_UP && mahjongPanel != null) mahjongPanel.leave();
+            return true;
+        }
+        // Do not expose the general MAME system picker through a hardware keyboard.
+        if (event.getKeyCode() == android.view.KeyEvent.KEYCODE_TAB || event.getKeyCode() == android.view.KeyEvent.KEYCODE_ESCAPE) return true;
+        return super.dispatchKeyEvent(event);
+    }
 
 	public void inflateViews() {
 
@@ -283,6 +316,9 @@ public class MAME4droid extends Activity {
 		}
 
 		inputHandler.setInputListeners();
+        inputView.setVisibility(View.GONE);
+        mahjongPanel = new com.seleuco.mame4droid.mahjong.MahjongPanel(this);
+        ((android.widget.LinearLayout)findViewById(R.id.LinearLayout01)).addView(mahjongPanel);
 	}
 
 	public void runMAME4droid() {
@@ -354,6 +390,7 @@ public class MAME4droid extends Activity {
 	protected void onPause() {
 		Log.d("EMULATOR", "onPause " + this);
 		super.onPause();
+        if (mahjongPanel != null) mahjongPanel.releaseAll();
 		if (prefsHelper != null)
 			prefsHelper.pause();
 		if (!ControlCustomizer.isEnabled())
