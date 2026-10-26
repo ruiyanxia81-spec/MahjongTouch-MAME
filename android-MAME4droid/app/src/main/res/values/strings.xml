@@ -36,7 +36,7 @@
 
     <!-- DialogHelper -->
     <string name="dlg_save_changes">Do you want to save changes?</string>
-    <string name="dlg_roms_message">Choose the folder containing your arcade mahjong ROM ZIP files. Keep ROMs compressed as ZIP files; some games also require a BIOS or sound-device ZIP.\n\nMahjong Touch is being developed for mahjong games only. This early build does not yet restrict the underlying MAME game list or provide mahjong-specific touchscreen keys.</string>
+    <string name="dlg_roms_message">Choose the folder containing your arcade mahjong ROM ZIP files. Keep ROMs compressed as ZIP files; some games also require a BIOS or sound-device ZIP.\n\nMahjong Touch is being developed for mahjong games only. Use the Mahjong Touch library to import game and dependency ZIPs.</string>
     <string name="dlg_roms_internal">Internal</string>
     <string name="dlg_roms_external">External Storage</string>
     <string name="dlg_no_doc_picker">Your device doesn\'t have the native android file manager needed to authorize external storage reading.</string>

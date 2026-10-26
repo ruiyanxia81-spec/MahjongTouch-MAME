@@ -1,7 +1,9 @@
-name: Mahjong Touch Android build probe
+name: Mahjong Touch APK
 
 on:
   workflow_dispatch:
+  push:
+    branches: ['mahjongtouch/standalone-brand']
   pull_request:
     paths:
       - 'android-MAME4droid/**'
@@ -33,16 +35,39 @@ jobs:
         run: |
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+      - name: Fetch pinned official MAME core (not included in source repository)
+        run: |
+          curl --fail --location --retry 3 -o /tmp/upstream.apk 'https://github.com/seleuco/MAME4droid-Current/releases/download/v1.41.2/MAME4droid.2026-1.41.2-release.apk'
+          echo 'b2e05497f4c7b8b0d5ac84a4755569050f60a4c9c69c7e219f6783bd9c5bb2ad  /tmp/upstream.apk' | sha256sum --check
+          mkdir -p /tmp/upstream-core
+          unzip -q /tmp/upstream.apk 'lib/arm64-v8a/*' -d /tmp/upstream-core
+          cp /tmp/upstream-core/lib/arm64-v8a/*.so android-MAME4droid/app/src/main/jniLibs/arm64-v8a/
+          rm -f android-MAME4droid/app/src/main/jniLibs/arm64-v8a/libmame4droid-jni.so
+          test -s android-MAME4droid/app/src/main/jniLibs/arm64-v8a/libMAME4droid.so
+          readelf --dyn-syms --wide android-MAME4droid/app/src/main/jniLibs/arm64-v8a/libMAME4droid.so | grep 'myosd_droid_setKeyData'
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build debug APK (diagnostic)
+      - name: Build Mahjong Touch test APK
         working-directory: android-MAME4droid
         run: gradle --no-daemon --stacktrace assembleDebug
+      - name: Verify packaged core and Android identity
+        run: |
+          APK=$(find android-MAME4droid/app/build/outputs/apk/debug -name '*.apk' | head -n 1)
+          unzip -p "$APK" lib/arm64-v8a/libMAME4droid.so > /tmp/packaged-core.so
+          test $(stat -c%s /tmp/packaged-core.so) -gt 10000000
+          readelf -h /tmp/packaged-core.so | grep AArch64
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" > /tmp/apk-info.txt
+          cat /tmp/apk-info.txt
+          grep "package: name='nz.mahjongtouch.arcade'" /tmp/apk-info.txt
+          grep "launchable-activity: name='com.seleuco.mame4droid.mahjong.MahjongLibrary'" /tmp/apk-info.txt
+          sha256sum "$APK" > "$APK.sha256"
       - name: Upload debug APK if produced
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: mahjongtouch-upstream-debug-apk
-          path: android-MAME4droid/app/build/outputs/apk/debug/*.apk
+          name: MahjongTouch-0.7.0-arm64-test
+          path: |
+            android-MAME4droid/app/build/outputs/apk/debug/*.apk
+            android-MAME4droid/app/build/outputs/apk/debug/*.sha256
           if-no-files-found: error

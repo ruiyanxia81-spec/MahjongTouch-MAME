@@ -1054,7 +1054,7 @@ public class Emulator {
 				}
 				mm.runOnUiThread(new Runnable() {
 					public void run() {
-						mm.finishAndRemoveTask();
+						mm.finish();
 						android.os.Process.killProcess(android.os.Process.myPid());
 					}
 				});
