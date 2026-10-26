@@ -20,7 +20,7 @@ public class GameActivity extends Activity {
         LinearLayout layout=new LinearLayout(this);layout.setOrientation(1);layout.setBackgroundColor(Color.rgb(29,27,48));
         LinearLayout header=new LinearLayout(this);Button back=new Button(this);back.setText("换游戏");header.addView(back);back.setOnClickListener(v->askLeave());
         TextView title=new TextView(this);title.setText("Kutar Touch · "+game+"\n首次启动可能需要 20–90 秒");title.setTextColor(Color.WHITE);header.addView(title);layout.addView(header);
-        web=new WebView(this);layout.addView(web,new LinearLayout.LayoutParams(-1,0,1));setContentView(layout);
+        web=new WebView(this);layout.addView(web,new LinearLayout.LayoutParams(-1,0,1));LibraryActivity.applyInsets(layout);setContentView(layout);
         WebSettings settings=web.getSettings();settings.setJavaScriptEnabled(true);settings.setDomStorageEnabled(true);settings.setMediaPlaybackRequiresUserGesture(false);settings.setAllowFileAccess(false);settings.setAllowContentAccess(false);settings.setSupportZoom(false);settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         web.setWebViewClient(new WebViewClient(){
             @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){return true;}

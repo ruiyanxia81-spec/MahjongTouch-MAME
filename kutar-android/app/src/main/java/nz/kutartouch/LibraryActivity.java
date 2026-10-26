@@ -22,9 +22,17 @@ public class LibraryActivity extends Activity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private LinearLayout list;
     private boolean importing;
+    static void applyInsets(android.view.View view) {
+        final int l=view.getPaddingLeft(),t=view.getPaddingTop(),r=view.getPaddingRight(),b=view.getPaddingBottom();
+        view.setOnApplyWindowInsetsListener((v,insets)->{
+            if(android.os.Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=insets.getInsets(android.view.WindowInsets.Type.systemBars()|android.view.WindowInsets.Type.displayCutout());v.setPadding(l+bars.left,t+bars.top,r+bars.right,b+bars.bottom);}
+            else v.setPadding(l+insets.getSystemWindowInsetLeft(),t+insets.getSystemWindowInsetTop(),r+insets.getSystemWindowInsetRight(),b+insets.getSystemWindowInsetBottom());
+            return insets;
+        });
+    }
     static boolean valid(String id) { return Arrays.asList(IDS).contains(id); }
     static File gameFile(Activity a,String id) { return new File(a.getFilesDir(), "games/" + id + ".zip"); }
-    @Override public void onCreate(Bundle state) { super.onCreate(state); list=new LinearLayout(this); list.setOrientation(1); list.setPadding(24,32,24,24); list.setBackgroundColor(Color.rgb(29,27,48)); ScrollView scroll=new ScrollView(this); scroll.addView(list); setContentView(scroll); refresh(); }
+    @Override public void onCreate(Bundle state) { super.onCreate(state); list=new LinearLayout(this); list.setOrientation(1); list.setPadding(24,32,24,24); list.setBackgroundColor(Color.rgb(29,27,48)); ScrollView scroll=new ScrollView(this); scroll.addView(list); applyInsets(scroll); setContentView(scroll); refresh(); }
     @Override protected void onNewIntent(Intent i) { super.onNewIntent(i); setIntent(i); refresh(); }
     private void refresh() {
         list.removeAllViews();
