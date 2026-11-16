@@ -13,6 +13,9 @@ import sys
 project = pathlib.Path(sys.argv[1]) / "libretrodroid"
 build = project / "build.gradle"
 build.write_text(build.read_text().replace('    compileSdkVersion 33', '    compileSdkVersion 35\n    ndkVersion "28.2.13676358"'))
+for header in ("rumble.h", "utils/javautils.h"):
+    declaration = project / "src/main/cpp" / header
+    declaration.write_text("#include <functional>\n" + declaration.read_text())
 view = project / "src/main/java/com/swordfish/libretrodroid/GLRetroView.kt"
 source = view.read_text()
 anchor = "    fun sendMotionEvent("
