@@ -1,0 +1,39 @@
+name: Arcade Touch APK
+on:
+  pull_request:
+    paths:
+      - 'android-ArcadeTouch/**'
+      - '.github/workflows/arcadetouch-android.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Install Android tools
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'build-tools;34.0.0' 'ndk;28.2.13676358' 'cmake;3.22.1'
+      - name: Prepare LibretroDroid and FBNeo
+        run: bash android-ArcadeTouch/prepare.sh
+      - name: Build APK
+        working-directory: android-ArcadeTouch
+        run: gradle --no-daemon --stacktrace assembleDebug
+      - name: Verify packaged FBNeo
+        working-directory: android-ArcadeTouch
+        run: |
+          unzip -p app/build/outputs/apk/debug/app-debug.apk lib/arm64-v8a/libfbneo.so > /tmp/fbneo.so
+          readelf --dyn-syms --wide /tmp/fbneo.so | awk '$8 == "retro_run" { found=1 } END { exit !found }'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ArcadeTouch-0.1.0-arm64
+          path: android-ArcadeTouch/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
