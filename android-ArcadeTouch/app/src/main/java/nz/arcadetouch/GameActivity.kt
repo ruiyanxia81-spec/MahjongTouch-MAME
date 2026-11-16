@@ -39,6 +39,10 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         KeyEvent.KEYCODE_DPAD_UP to Control.UP, KeyEvent.KEYCODE_DPAD_DOWN to Control.DOWN,
         KeyEvent.KEYCODE_DPAD_LEFT to Control.LEFT, KeyEvent.KEYCODE_DPAD_RIGHT to Control.RIGHT
     )
+    private val reservedKeys = setOf(
+        KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_SELECT,
+        KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_BUTTON_MODE
+    )
     private val retroKeys = mapOf(
         0 to KeyEvent.KEYCODE_BUTTON_B, 8 to KeyEvent.KEYCODE_BUTTON_A,
         2 to KeyEvent.KEYCODE_BUTTON_SELECT, 3 to KeyEvent.KEYCODE_BUTTON_START,
@@ -184,6 +188,10 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
             .setOnKeyListener { dialog, code, event ->
                 if (!isController(event.source) || !KeyEvent.isGamepadButton(code)) return@setOnKeyListener false
                 if (event.action == KeyEvent.ACTION_UP) {
+                    if (code in reservedKeys) {
+                        android.widget.Toast.makeText(this, "请选择肩键或其他未使用的键", android.widget.Toast.LENGTH_SHORT).show()
+                        return@setOnKeyListener true
+                    }
                     comboKey = code
                     settings.edit().putInt("combo", code).apply()
                     dialog.dismiss()

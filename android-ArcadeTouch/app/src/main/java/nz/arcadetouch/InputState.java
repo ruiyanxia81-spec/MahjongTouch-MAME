@@ -9,8 +9,9 @@ public final class InputState {
 
     public enum Control {
         // The low 16 bits of the output use the libretro joypad button IDs.
-        ATTACK(8),
-        JUMP(0),
+        // FBNeo's generic arcade layout maps Fire 1 to RetroPad B and Fire 2 to A.
+        ATTACK(0),
+        JUMP(8),
         COIN(2),
         START(3),
         UP(4),
