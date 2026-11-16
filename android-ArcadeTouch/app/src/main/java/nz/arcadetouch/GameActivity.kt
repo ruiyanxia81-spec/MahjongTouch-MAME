@@ -25,6 +25,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.swordfish.libretrodroid.GLRetroView
 import com.swordfish.libretrodroid.GLRetroViewData
+import com.swordfish.libretrodroid.Variable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -49,6 +50,8 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private lateinit var romName: String
     private var slotPickerOpen = false
     private var comboKey = KeyEvent.KEYCODE_BUTTON_R1
+    private var specialKey = KeyEvent.KEYCODE_BUTTON_X
+    private var cheatMenuOpen = false
     private val heldKeys = mutableSetOf<Int>()
     private var axes = emptySet<Control>()
     private val keyDirections = mapOf(
@@ -75,6 +78,8 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         hideStatusBar()
         comboKey = settings.getInt("combo", KeyEvent.KEYCODE_BUTTON_R1)
             .takeUnless { it == dashKey } ?: KeyEvent.KEYCODE_BUTTON_R1
+        specialKey = settings.getInt("special", KeyEvent.KEYCODE_BUTTON_X)
+        if (specialKey == comboKey) specialKey = KeyEvent.KEYCODE_BUTTON_Y
         if (settings.getBoolean("gamepad", false)) input.setMode(Mode.GAMEPAD)
         val data = GLRetroViewData(this).apply {
             gameFilePath = rom
@@ -147,7 +152,10 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         directions.addView(row(touch("↑", Control.UP)))
         directions.addView(row(touch("←", Control.LEFT), touch("↓", Control.DOWN), touch("→", Control.RIGHT)))
         actions.addView(row(touch("投币", Control.COIN), touch("开始", Control.START)))
-        actions.addView(row(touch("A", Control.ATTACK), touch("B", Control.JUMP), touch("A+B", Control.ATTACK_AND_JUMP)))
+        actions.addView(row(touch("A", Control.ATTACK), touch("B", Control.JUMP), touch("A+B", Control.ATTACK_AND_JUMP),
+            Button(this).apply { text = "冲攻"; minWidth = 0; minimumWidth = 0; isFocusable = false
+                setOnClickListener { if (!menuOpen && input.mode() == Mode.TOUCH) triggerDash(attack = true) }
+            }))
         return LinearLayout(this).apply {
             gravity = Gravity.BOTTOM
             isMotionEventSplittingEnabled = true
@@ -221,7 +229,7 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         val switchLabel = if (gamepad) "切换到蓝牙手柄" else "切换到触屏"
         AlertDialog.Builder(this)
             .setTitle("暂停")
-            .setItems(arrayOf("继续游戏", "保存存档", "加载存档", "存档改名", switchLabel, "绑定 A+B", "退出游戏")) { _, which ->
+            .setItems(arrayOf("继续游戏", "保存存档", "加载存档", "存档改名", switchLabel, "作弊", "绑定 A+B", "绑定冲刺攻击", "退出游戏")) { _, which ->
                 when (which) {
                     1 -> chooseSlot(SlotAction.SAVE)
                     2 -> chooseSlot(SlotAction.LOAD)
@@ -231,11 +239,13 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
                         settings.edit().putBoolean("gamepad", gamepad).apply()
                         pad.visibility = if (gamepad) View.GONE else View.VISIBLE
                     }
-                    5 -> { binding = true; bindCombo() }
-                    6 -> finish()
+                    5 -> showCheats()
+                    6 -> { binding = true; bindShortcut(special = false) }
+                    7 -> { binding = true; bindShortcut(special = true) }
+                    8 -> finish()
                 }
             }
-            .setOnDismissListener { if (!binding && !slotPickerOpen && !stateOperation) resumeGame() }
+            .setOnDismissListener { if (!binding && !slotPickerOpen && !stateOperation && !cheatMenuOpen) resumeGame() }
             .show()
     }
 
@@ -357,20 +367,77 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         if (!isFinishing) android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
     }
 
-    private fun bindCombo() {
+    private fun showCheats() {
+        if (!gameReady) {
+            showStateMessage("请等游戏启动后再操作")
+            return
+        }
+        cheatMenuOpen = true
+        lifecycleScope.launch {
+            val options = runCatching {
+                onGameThread { retro.getVariables() }.filter {
+                    it.key?.startsWith("fbneo-cheat-") == true && it.description?.contains(';') == true
+                }.sortedBy { it.key?.removePrefix("fbneo-cheat-")?.substringBefore('-')?.toIntOrNull() }
+            }.getOrDefault(emptyList())
+            if (isFinishing || isDestroyed) return@launch
+            if (options.isEmpty()) {
+                AlertDialog.Builder(this@GameActivity)
+                    .setTitle("作弊")
+                    .setMessage("没有可用的作弊选项。请在游戏库导入与 ROM 同名的 FBNeo INI 文件，再重新启动游戏。")
+                    .setPositiveButton("确定", null)
+                    .setOnDismissListener { closeCheats() }.show()
+                return@launch
+            }
+            var openingOption = false
+            AlertDialog.Builder(this@GameActivity)
+                .setTitle("作弊")
+                .setItems(options.map {
+                    "${it.description.orEmpty().substringBefore(';').substringAfterLast(']').trim()} · ${it.value.orEmpty().substringAfter(" - ")}"
+                }.toTypedArray()) { _, index ->
+                    openingOption = true
+                    editCheat(options[index])
+                }
+                .setNegativeButton("取消", null)
+                .setOnDismissListener { if (!openingOption) closeCheats() }
+                .show()
+        }
+    }
+
+    private fun editCheat(option: Variable) {
+        val choices = option.description.orEmpty().substringAfter(';').trim().split('|')
         AlertDialog.Builder(this)
-            .setTitle("按下要绑定为 A+B 的手柄键")
-            .setMessage("当前绑定：${KeyEvent.keyCodeToString(comboKey).removePrefix("KEYCODE_BUTTON_")}")
+            .setTitle(option.description.orEmpty().substringBefore(';').substringAfterLast(']').trim())
+            .setSingleChoiceItems(choices.map { it.substringAfter(" - ") }.toTypedArray(), choices.indexOf(option.value)) { dialog, index ->
+                retro.queueEvent { retro.updateVariables(Variable(option.key, choices[index])) }
+                dialog.dismiss()
+            }
+            .setNegativeButton("取消", null)
+            .setOnDismissListener { closeCheats() }
+            .show()
+    }
+
+    private fun closeCheats() {
+        cheatMenuOpen = false
+        resumeGame()
+    }
+
+    private fun bindShortcut(special: Boolean) {
+        val label = if (special) "冲刺攻击" else "A+B"
+        val currentKey = if (special) specialKey else comboKey
+        val otherKey = if (special) comboKey else specialKey
+        AlertDialog.Builder(this)
+            .setTitle("按下要绑定为 $label 的手柄键")
+            .setMessage("当前绑定：${KeyEvent.keyCodeToString(currentKey).removePrefix("KEYCODE_BUTTON_")}")
             .setNegativeButton("取消", null)
             .setOnKeyListener { dialog, code, event ->
                 if (!isController(event.source) || !KeyEvent.isGamepadButton(code)) return@setOnKeyListener false
                 if (event.action == KeyEvent.ACTION_UP) {
-                    if (code in reservedKeys) {
+                    if (code in reservedKeys || code == otherKey) {
                         android.widget.Toast.makeText(this, "请选择肩键或其他未使用的键", android.widget.Toast.LENGTH_SHORT).show()
                         return@setOnKeyListener true
                     }
-                    comboKey = code
-                    settings.edit().putInt("combo", code).apply()
+                    if (special) specialKey = code else comboKey = code
+                    settings.edit().putInt(if (special) "special" else "combo", code).apply()
                     dialog.dismiss()
                 }
                 true
@@ -403,14 +470,8 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
             return true
         }
         if (acceptsController(event.deviceId)) {
-            if (code == dashKey) {
-                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    val left = appliedMask and (1 shl 6) != 0
-                    val right = appliedMask and (1 shl 7) != 0
-                    if (left xor right) {
-                        retro.sendDirectionDoubleTap(if (left) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT)
-                    }
-                }
+            if (code == dashKey || code == specialKey) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) triggerDash(attack = code == specialKey)
                 return true
             }
             if (event.action == KeyEvent.ACTION_DOWN) heldKeys.add(code)
@@ -418,6 +479,14 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
             updateGamepad()
         }
         return true
+    }
+
+    private fun triggerDash(attack: Boolean) {
+        val left = appliedMask and (1 shl 6) != 0
+        val right = appliedMask and (1 shl 7) != 0
+        if (left xor right) {
+            retro.sendDirectionDoubleTap(if (left) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT, attack)
+        }
     }
 
     override fun dispatchGenericMotionEvent(event: MotionEvent): Boolean {

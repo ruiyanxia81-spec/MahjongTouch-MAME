@@ -45,6 +45,33 @@ class LibraryActivity : ComponentActivity() {
         }
     }
 
+    private val cheatPicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isEmpty()) return@registerForActivityResult
+        lifecycleScope.launch {
+            val imported = withContext(Dispatchers.IO) {
+                val directory = File(filesDir, "fbneo/cheats").apply { mkdirs() }
+                uris.count { uri ->
+                    runCatching {
+                        val name = contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+                            ?.use { if (it.moveToFirst()) it.getString(0) else null }
+                            ?: error("Missing cheat name")
+                        require(name.matches(Regex("[A-Za-z0-9_-]+[.]ini", RegexOption.IGNORE_CASE)))
+                        val temporary = File.createTempFile("cheats-", ".tmp", directory)
+                        try {
+                            val source = contentResolver.openInputStream(uri) ?: error("Cannot open cheats")
+                            source.use { input -> temporary.outputStream().use { input.copyTo(it) } }
+                            require(temporary.length() > 0)
+                            check(temporary.renameTo(File(directory, name.lowercase(java.util.Locale.ROOT))))
+                        } finally {
+                            temporary.delete()
+                        }
+                    }.isSuccess
+                }
+            }
+            Toast.makeText(this@LibraryActivity, "已导入 $imported / ${uris.size} 个作弊文件", Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         library = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -55,6 +82,7 @@ class LibraryActivity : ComponentActivity() {
     private fun showLibrary() {
         library.removeAllViews()
         addButton("导入 FBNeo ROM（ZIP）") { picker.launch(arrayOf("*/*")) }
+        addButton("导入 FBNeo 作弊文件（INI）") { cheatPicker.launch(arrayOf("*/*")) }
         roms.listFiles().orEmpty().filter { it.isFile && validName.matches(it.name) }.sortedBy { it.name }
             .forEach { rom ->
                 val label = if (rom.name == "captcomm.zip") "名将 · Captain Commando" else rom.name

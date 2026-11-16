@@ -24,11 +24,25 @@ source = source.replace(anchor, """    // These fields and the native input call
     private var dashDirection: Int? = null
     private var dashFrame = 0
 
-    fun sendDirectionDoubleTap(keyCode: Int) {
+    private var dashWithAttack = false
+    private var physicalAttackHeld = false
+    private var dashAttackHeld = false
+    private val attackKey = KeyEvent.KEYCODE_BUTTON_B
+
+    private fun setDashAttack(held: Boolean) {
+        if (dashAttackHeld == held) return
+        dashAttackHeld = held
+        if (!physicalAttackHeld) {
+            LibretroDroid.onKeyEvent(0, if (held) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, attackKey)
+        }
+    }
+
+    fun sendDirectionDoubleTap(keyCode: Int, attack: Boolean) {
         queueEvent {
             if (dashDirection == null) {
                 dashDirection = keyCode
                 dashFrame = 0
+                dashWithAttack = attack
             }
         }
     }
@@ -38,15 +52,28 @@ source = source.replace(anchor, """    // These fields and the native input call
         when (dashFrame++) {
             0, 6 -> LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_UP, direction)
             3, 9 -> LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_DOWN, direction)
-            12 -> dashDirection = null
+            12 -> if (dashWithAttack) setDashAttack(true) else dashDirection = null
+            16 -> {
+                setDashAttack(false)
+                dashDirection = null
+            }
         }
     }
 
     fun sendJoypadKeys(released: IntArray, pressed: IntArray) {
         queueEvent {
-            if (released.any { it == dashDirection }) dashDirection = null
-            released.forEach { LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_UP, it) }
-            pressed.forEach { LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_DOWN, it) }
+            if (released.any { it == dashDirection }) {
+                dashDirection = null
+                setDashAttack(false)
+            }
+            released.forEach {
+                if (it == attackKey) physicalAttackHeld = false
+                if (it != attackKey || !dashAttackHeld) LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_UP, it)
+            }
+            pressed.forEach {
+                if (it == attackKey) physicalAttackHeld = true
+                if (it != attackKey || !dashAttackHeld) LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_DOWN, it)
+            }
         }
     }
 
