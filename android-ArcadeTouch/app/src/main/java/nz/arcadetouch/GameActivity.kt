@@ -15,6 +15,9 @@ import android.widget.LinearLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.lifecycleScope
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.swordfish.libretrodroid.GLRetroView
 import com.swordfish.libretrodroid.GLRetroViewData
 import kotlinx.coroutines.launch
@@ -39,7 +42,8 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         KeyEvent.KEYCODE_DPAD_UP to Control.UP, KeyEvent.KEYCODE_DPAD_DOWN to Control.DOWN,
         KeyEvent.KEYCODE_DPAD_LEFT to Control.LEFT, KeyEvent.KEYCODE_DPAD_RIGHT to Control.RIGHT
     )
-    private val reservedKeys = setOf(
+    private val dashKey = KeyEvent.KEYCODE_BUTTON_L1
+    private val reservedKeys = setOf(dashKey,
         KeyEvent.KEYCODE_BUTTON_A, KeyEvent.KEYCODE_BUTTON_B, KeyEvent.KEYCODE_BUTTON_SELECT,
         KeyEvent.KEYCODE_BUTTON_START, KeyEvent.KEYCODE_BUTTON_MODE
     )
@@ -54,6 +58,7 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         super.onCreate(savedInstanceState)
         val rom = intent.getStringExtra("rom") ?: run { finish(); return }
         comboKey = settings.getInt("combo", KeyEvent.KEYCODE_BUTTON_R1)
+            .takeUnless { it == dashKey } ?: KeyEvent.KEYCODE_BUTTON_R1
         if (settings.getBoolean("gamepad", false)) input.setMode(Mode.GAMEPAD)
         val data = GLRetroViewData(this).apply {
             gameFilePath = rom
@@ -75,6 +80,7 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
             setOnClickListener { showMenu() }
         }, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.END))
         setContentView(root)
+        hideStatusBar()
         devices.registerInputDeviceListener(this, null)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() { showMenu() }
@@ -86,6 +92,18 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
                     .setPositiveButton("返回游戏库") { _, _ -> finish() }
                     .setOnCancelListener { finish() }.show()
             }
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) hideStatusBar()
+    }
+
+    private fun hideStatusBar() {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.statusBars())
         }
     }
 
@@ -226,6 +244,16 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
             return true
         }
         if (acceptsController(event.deviceId)) {
+            if (code == dashKey) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    val left = appliedMask and (1 shl 6) != 0
+                    val right = appliedMask and (1 shl 7) != 0
+                    if (left xor right) {
+                        retro.sendDirectionDoubleTap(if (left) KeyEvent.KEYCODE_DPAD_LEFT else KeyEvent.KEYCODE_DPAD_RIGHT)
+                    }
+                }
+                return true
+            }
             if (event.action == KeyEvent.ACTION_DOWN) heldKeys.add(code)
             if (event.action == KeyEvent.ACTION_UP) heldKeys.remove(code)
             updateGamepad()

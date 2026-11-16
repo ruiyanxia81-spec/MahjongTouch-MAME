@@ -20,14 +20,40 @@ view = project / "src/main/java/com/swordfish/libretrodroid/GLRetroView.kt"
 source = view.read_text()
 anchor = "    fun sendMotionEvent("
 assert source.count(anchor) == 1
-view.write_text(source.replace(anchor, """    fun sendJoypadKeys(released: IntArray, pressed: IntArray) {
+source = source.replace(anchor, """    // These fields and the native input calls below belong to the GL thread.
+    private var dashDirection: Int? = null
+    private var dashFrame = 0
+
+    fun sendDirectionDoubleTap(keyCode: Int) {
         queueEvent {
+            if (dashDirection == null) {
+                dashDirection = keyCode
+                dashFrame = 0
+            }
+        }
+    }
+
+    private fun advanceDirectionDoubleTap() {
+        val direction = dashDirection ?: return
+        when (dashFrame++) {
+            0, 6 -> LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_UP, direction)
+            3, 9 -> LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_DOWN, direction)
+            12 -> dashDirection = null
+        }
+    }
+
+    fun sendJoypadKeys(released: IntArray, pressed: IntArray) {
+        queueEvent {
+            if (released.any { it == dashDirection }) dashDirection = null
             released.forEach { LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_UP, it) }
             pressed.forEach { LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_DOWN, it) }
         }
     }
 
-""" + anchor))
+""" + anchor)
+frame = "                LibretroDroid.step(this@GLRetroView)"
+assert source.count(frame) == 1
+view.write_text(source.replace(frame, "                advanceDirectionDoubleTap()\n" + frame))
 PY
 archive=$(mktemp)
 trap 'rm -f "$archive"' EXIT
