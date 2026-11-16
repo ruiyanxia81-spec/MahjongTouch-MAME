@@ -9,6 +9,8 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
+import android.view.WindowManager
+import android.util.AtomicFile
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
@@ -20,7 +22,10 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.swordfish.libretrodroid.GLRetroView
 import com.swordfish.libretrodroid.GLRetroViewData
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import java.io.File
 import nz.arcadetouch.InputState.Control
 import nz.arcadetouch.InputState.Mode
@@ -35,6 +40,9 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private var appliedMask = 0
     private var menuOpen = false
     private var binding = false
+    private var stateOperation = false
+    private var gameReady = false
+    private lateinit var gameState: AtomicFile
     private var comboKey = KeyEvent.KEYCODE_BUTTON_R1
     private val heldKeys = mutableSetOf<Int>()
     private var axes = emptySet<Control>()
@@ -57,6 +65,9 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val rom = intent.getStringExtra("rom") ?: run { finish(); return }
+        val directory = File(filesDir, "savestates")
+        gameState = AtomicFile(File(directory, File(rom).name + ".state"))
+        hideStatusBar()
         comboKey = settings.getInt("combo", KeyEvent.KEYCODE_BUTTON_R1)
             .takeUnless { it == dashKey } ?: KeyEvent.KEYCODE_BUTTON_R1
         if (settings.getBoolean("gamepad", false)) input.setMode(Mode.GAMEPAD)
@@ -86,6 +97,11 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
             override fun handleOnBackPressed() { showMenu() }
         })
         lifecycleScope.launch {
+            retro.getGLRetroEvents().collect { event ->
+                if (event == GLRetroView.GLRetroEvents.FrameRendered) gameReady = true
+            }
+        }
+        lifecycleScope.launch {
             retro.getGLRetroErrors().collect { code ->
                 if (!isFinishing) AlertDialog.Builder(this@GameActivity)
                     .setMessage("FBNeo 无法启动游戏（错误 ${code}）。请检查 ROM 与核心版本。")
@@ -100,7 +116,13 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         if (hasFocus) hideStatusBar()
     }
 
+    override fun onResume() {
+        super.onResume()
+        hideStatusBar()
+    }
+
     private fun hideStatusBar() {
+        window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         WindowCompat.getInsetsController(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             hide(WindowInsetsCompat.Type.statusBars())
@@ -182,20 +204,76 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         menuOpen = true
         clearInput()
         retro.renderMode = GLSurfaceView.RENDERMODE_WHEN_DIRTY
-        val current = if (input.mode() == Mode.TOUCH) 0 else 1
-        var selected = current
+        val nextMode = if (input.mode() == Mode.TOUCH) Mode.GAMEPAD else Mode.TOUCH
+        val gamepad = nextMode == Mode.GAMEPAD
+        val switchLabel = if (gamepad) "切换到蓝牙手柄" else "切换到触屏"
         AlertDialog.Builder(this)
-            .setTitle("暂停 · 操作模式")
-            .setSingleChoiceItems(arrayOf("触屏", "蓝牙手柄"), current) { _, which -> selected = which }
-            .setPositiveButton("继续") { _, _ ->
-                input.setMode(if (selected == 0) Mode.TOUCH else Mode.GAMEPAD)
-                settings.edit().putBoolean("gamepad", selected == 1).apply()
-                pad.visibility = if (selected == 0) View.VISIBLE else View.GONE
+            .setTitle("暂停")
+            .setItems(arrayOf("继续游戏", "保存存档", "加载存档", switchLabel, "绑定 A+B", "退出游戏")) { _, which ->
+                when (which) {
+                    1 -> changeState(save = true)
+                    2 -> changeState(save = false)
+                    3 -> {
+                        input.setMode(nextMode)
+                        settings.edit().putBoolean("gamepad", gamepad).apply()
+                        pad.visibility = if (gamepad) View.GONE else View.VISIBLE
+                    }
+                    4 -> { binding = true; bindCombo() }
+                    5 -> finish()
+                }
             }
-            .setNegativeButton("退出游戏") { _, _ -> finish() }
-            .setNeutralButton("绑定 A+B") { _, _ -> binding = true; bindCombo() }
-            .setOnDismissListener { if (!binding) resumeGame() }
+            .setOnDismissListener { if (!binding && !stateOperation) resumeGame() }
             .show()
+    }
+
+    private fun changeState(save: Boolean) {
+        if (!gameReady) {
+            showStateMessage("请等游戏启动后再操作")
+            return
+        }
+        stateOperation = true
+        lifecycleScope.launch {
+            try {
+                if (save) {
+                    val bytes = onGameThread { retro.serializeState(false) }
+                    check(bytes.isNotEmpty())
+                    withContext(Dispatchers.IO) {
+                        val output = gameState.startWrite()
+                        try {
+                            output.write(bytes)
+                            gameState.finishWrite(output)
+                        } catch (error: Exception) {
+                            gameState.failWrite(output)
+                            throw error
+                        }
+                    }
+                    showStateMessage("存档已保存")
+                } else {
+                    val bytes = withContext(Dispatchers.IO) { gameState.readFully() }
+                    check(onGameThread { retro.unserializeState(bytes, false) })
+                    showStateMessage("存档已加载")
+                }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: java.io.FileNotFoundException) {
+                showStateMessage(if (save) "无法保存存档" else "这个游戏还没有存档")
+            } catch (error: Exception) {
+                showStateMessage(if (save) "无法保存存档" else "无法加载存档")
+            } finally {
+                stateOperation = false
+                resumeGame()
+            }
+        }
+    }
+
+    private suspend fun <T> onGameThread(action: () -> T): T = suspendCancellableCoroutine { result ->
+        retro.queueEvent {
+            if (result.isActive) result.resumeWith(runCatching(action))
+        }
+    }
+
+    private fun showStateMessage(message: String) {
+        if (!isFinishing) android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_SHORT).show()
     }
 
     private fun bindCombo() {
