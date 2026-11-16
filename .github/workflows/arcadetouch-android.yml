@@ -44,6 +44,6 @@ jobs:
           awk '/uses-permission/ && !/name=\047nz\.arcadetouch\.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION\047/ { unexpected=1 } END { exit unexpected }' /tmp/arcade-permissions.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: ArcadeTouch-0.3.0-arm64
+          name: ArcadeTouch-0.4.0-arm64
           path: android-ArcadeTouch/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error

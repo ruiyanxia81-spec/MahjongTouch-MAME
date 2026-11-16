@@ -51,6 +51,12 @@ source = source.replace(anchor, """    // These fields and the native input call
     }
 
 """ + anchor)
+surface = "        if (isGameLoaded) return@catchExceptions"
+assert source.count(surface) == 1
+source = source.replace(surface, """        if (isGameLoaded) {
+            LibretroDroid.onSurfaceCreated()
+            return@catchExceptions
+        }""")
 frame = "                LibretroDroid.step(this@GLRetroView)"
 assert source.count(frame) == 1
 view.write_text(source.replace(frame, "                advanceDirectionDoubleTap()\n" + frame))

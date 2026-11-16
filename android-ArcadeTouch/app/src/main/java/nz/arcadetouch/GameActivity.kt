@@ -1,6 +1,9 @@
 package nz.arcadetouch
 
 import android.app.AlertDialog
+import android.content.res.Configuration
+import android.text.InputFilter
+import android.widget.EditText
 import android.hardware.input.InputManager
 import android.opengl.GLSurfaceView
 import android.os.Bundle
@@ -42,7 +45,9 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private var binding = false
     private var stateOperation = false
     private var gameReady = false
-    private lateinit var gameState: AtomicFile
+    private lateinit var stateDirectory: File
+    private lateinit var romName: String
+    private var slotPickerOpen = false
     private var comboKey = KeyEvent.KEYCODE_BUTTON_R1
     private val heldKeys = mutableSetOf<Int>()
     private var axes = emptySet<Control>()
@@ -65,8 +70,8 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val rom = intent.getStringExtra("rom") ?: run { finish(); return }
-        val directory = File(filesDir, "savestates")
-        gameState = AtomicFile(File(directory, File(rom).name + ".state"))
+        stateDirectory = File(filesDir, "savestates")
+        romName = File(rom).name
         hideStatusBar()
         comboKey = settings.getInt("combo", KeyEvent.KEYCODE_BUTTON_R1)
             .takeUnless { it == dashKey } ?: KeyEvent.KEYCODE_BUTTON_R1
@@ -121,11 +126,18 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         hideStatusBar()
     }
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        clearInput()
+        hideStatusBar()
+        window.decorView.post { hideStatusBar() }
+    }
+
     private fun hideStatusBar() {
         window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         WindowCompat.getInsetsController(window, window.decorView).apply {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            hide(WindowInsetsCompat.Type.statusBars())
+            hide(WindowInsetsCompat.Type.systemBars())
         }
     }
 
@@ -209,28 +221,97 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         val switchLabel = if (gamepad) "切换到蓝牙手柄" else "切换到触屏"
         AlertDialog.Builder(this)
             .setTitle("暂停")
-            .setItems(arrayOf("继续游戏", "保存存档", "加载存档", switchLabel, "绑定 A+B", "退出游戏")) { _, which ->
+            .setItems(arrayOf("继续游戏", "保存存档", "加载存档", "存档改名", switchLabel, "绑定 A+B", "退出游戏")) { _, which ->
                 when (which) {
-                    1 -> changeState(save = true)
-                    2 -> changeState(save = false)
-                    3 -> {
+                    1 -> chooseSlot(SlotAction.SAVE)
+                    2 -> chooseSlot(SlotAction.LOAD)
+                    3 -> chooseSlot(SlotAction.RENAME)
+                    4 -> {
                         input.setMode(nextMode)
                         settings.edit().putBoolean("gamepad", gamepad).apply()
                         pad.visibility = if (gamepad) View.GONE else View.VISIBLE
                     }
-                    4 -> { binding = true; bindCombo() }
-                    5 -> finish()
+                    5 -> { binding = true; bindCombo() }
+                    6 -> finish()
                 }
             }
-            .setOnDismissListener { if (!binding && !stateOperation) resumeGame() }
+            .setOnDismissListener { if (!binding && !slotPickerOpen && !stateOperation) resumeGame() }
             .show()
     }
 
-    private fun changeState(save: Boolean) {
+    private enum class SlotAction(val title: String) {
+        SAVE("保存到哪个存档位"),
+        LOAD("加载哪个存档位"),
+        RENAME("选择要改名的存档位")
+    }
+
+    private fun slotFile(slot: Int): File {
+        // Keep the original single-slot path so existing saves appear in slot one.
+        val name = if (slot == 1) "$romName.state" else "$romName.$slot.state"
+        return File(stateDirectory, name)
+    }
+
+    private fun slotNameKey(slot: Int) = "state-name:$romName:$slot"
+
+    private fun chooseSlot(action: SlotAction) {
+        slotPickerOpen = true
+        val items = (1..10).map { slot ->
+            val name = settings.getString(slotNameKey(slot), null)
+            val status = if (slotFile(slot).exists()) "已存档" else "空"
+            val label = name ?: "存档 $slot"
+            "$slot. $label · $status"
+        }.toTypedArray()
+        var openingRename = false
+        AlertDialog.Builder(this)
+            .setTitle(action.title)
+            .setItems(items) { _, index ->
+                val slot = index + 1
+                if (action == SlotAction.RENAME) {
+                    openingRename = true
+                    renameSlot(slot)
+                } else {
+                    changeState(slot, save = action == SlotAction.SAVE)
+                }
+            }
+            .setNegativeButton("取消", null)
+            .setOnDismissListener {
+                if (!openingRename) {
+                    slotPickerOpen = false
+                    if (!stateOperation) resumeGame()
+                }
+            }
+            .show()
+    }
+
+    private fun renameSlot(slot: Int) {
+        val key = slotNameKey(slot)
+        val name = EditText(this).apply {
+            isSingleLine = true
+            filters = arrayOf(InputFilter.LengthFilter(40))
+            hint = "存档 $slot"
+            setText(settings.getString(key, ""))
+            selectAll()
+        }
+        AlertDialog.Builder(this)
+            .setTitle("修改存档 $slot 的名称")
+            .setView(name)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("保存名称") { _, _ ->
+                val label = name.text.toString().trim()
+                settings.edit().apply {
+                    if (label.isEmpty()) remove(key) else putString(key, label)
+                }.apply()
+            }
+            .setOnDismissListener { slotPickerOpen = false; resumeGame() }
+            .show()
+    }
+
+    private fun changeState(slot: Int, save: Boolean) {
         if (!gameReady) {
             showStateMessage("请等游戏启动后再操作")
             return
         }
+        val gameState = AtomicFile(slotFile(slot))
         stateOperation = true
         lifecycleScope.launch {
             try {
@@ -256,7 +337,7 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (error: java.io.FileNotFoundException) {
-                showStateMessage(if (save) "无法保存存档" else "这个游戏还没有存档")
+                showStateMessage(if (save) "无法保存存档" else "这个存档位还没有存档")
             } catch (error: Exception) {
                 showStateMessage(if (save) "无法保存存档" else "无法加载存档")
             } finally {
