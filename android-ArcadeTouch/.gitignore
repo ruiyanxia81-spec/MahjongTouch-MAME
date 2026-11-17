@@ -1,0 +1,4 @@
+/vendor/
+.gradle/
+**/build/
+/app/src/main/jniLibs/
