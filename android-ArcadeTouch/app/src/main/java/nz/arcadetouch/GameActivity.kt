@@ -43,6 +43,10 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
     private var activeDevice: Int? = null
     private var appliedMask = 0
     private var menuOpen = false
+    private var turboMenuOpen = false
+    // Emulated frames per full press/release cycle. Zero keeps normal button input.
+    private val turboPeriods = intArrayOf(0, 12, 8, 6, 4)
+    private var turboPeriod = 6
     private var binding = false
     private var stateOperation = false
     private var gameReady = false
@@ -76,6 +80,7 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         stateDirectory = File(filesDir, "savestates")
         romName = File(rom).name
         hideStatusBar()
+        turboPeriod = settings.getInt("attackTurboPeriod", 6).takeIf { it in turboPeriods } ?: 6
         comboKey = settings.getInt("combo", KeyEvent.KEYCODE_BUTTON_R1)
             .takeUnless { it == dashKey } ?: KeyEvent.KEYCODE_BUTTON_R1
         specialKey = settings.getInt("special", KeyEvent.KEYCODE_BUTTON_X)
@@ -91,6 +96,7 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
             isFocusable = false
             setOnTouchListener { _, _ -> true }
         }
+        retro.setAttackTurboPeriod(turboPeriod)
         root.addView(retro, FrameLayout.LayoutParams(-1, -1))
         lifecycle.addObserver(retro)
         pad = createPad()
@@ -207,7 +213,7 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         if (changed == 0) return
         val released = retroKeys.filterKeys { changed and (1 shl it) != 0 && next and (1 shl it) == 0 }
         val pressed = retroKeys.filterKeys { changed and (1 shl it) != 0 && next and (1 shl it) != 0 }
-        retro.sendJoypadKeys(released.values.toIntArray(), pressed.values.toIntArray())
+        retro.sendJoypadKeys(released.values.toIntArray(), pressed.values.toIntArray(), next and (1 shl 8) != 0)
         appliedMask = next
     }
 
@@ -229,7 +235,7 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
         val switchLabel = if (gamepad) "切换到蓝牙手柄" else "切换到触屏"
         AlertDialog.Builder(this)
             .setTitle("暂停")
-            .setItems(arrayOf("继续游戏", "保存存档", "加载存档", "存档改名", switchLabel, "作弊", "绑定 A+B", "绑定冲刺攻击", "退出游戏")) { _, which ->
+            .setItems(arrayOf("继续游戏", "保存存档", "加载存档", "存档改名", switchLabel, "作弊", "绑定 A+B", "绑定冲刺攻击", "攻击连发速度", "退出游戏")) { _, which ->
                 when (which) {
                     1 -> chooseSlot(SlotAction.SAVE)
                     2 -> chooseSlot(SlotAction.LOAD)
@@ -242,10 +248,27 @@ class GameActivity : ComponentActivity(), InputManager.InputDeviceListener {
                     5 -> showCheats()
                     6 -> { binding = true; bindShortcut(special = false) }
                     7 -> { binding = true; bindShortcut(special = true) }
-                    8 -> finish()
+                    8 -> showTurboSpeed()
+                    9 -> finish()
                 }
             }
-            .setOnDismissListener { if (!binding && !slotPickerOpen && !stateOperation && !cheatMenuOpen) resumeGame() }
+            .setOnDismissListener { if (!binding && !slotPickerOpen && !stateOperation && !cheatMenuOpen && !turboMenuOpen) resumeGame() }
+            .show()
+    }
+
+    private fun showTurboSpeed() {
+        turboMenuOpen = true
+        val labels = arrayOf("关闭", "约 5 次／秒", "约 7.5 次／秒", "约 10 次／秒", "约 15 次／秒")
+        AlertDialog.Builder(this)
+            .setTitle("A 攻击 · 按住连发")
+            .setSingleChoiceItems(labels, turboPeriods.indexOf(turboPeriod)) { dialog, index ->
+                turboPeriod = turboPeriods[index]
+                settings.edit().putInt("attackTurboPeriod", turboPeriod).apply()
+                retro.setAttackTurboPeriod(turboPeriod)
+                dialog.dismiss()
+            }
+            .setNegativeButton("取消", null)
+            .setOnDismissListener { turboMenuOpen = false; resumeGame() }
             .show()
     }
 

@@ -29,12 +29,36 @@ source = source.replace(anchor, """    // These fields and the native input call
     private var dashAttackHeld = false
     private val attackKey = KeyEvent.KEYCODE_BUTTON_B
 
-    private fun setDashAttack(held: Boolean) {
-        if (dashAttackHeld == held) return
-        dashAttackHeld = held
-        if (!physicalAttackHeld) {
-            LibretroDroid.onKeyEvent(0, if (held) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, attackKey)
+    private var attackTurboPeriod = 0
+    private var attackTurboFrame = 0
+    private var attackTurboBypassed = false
+    private var sentAttackHeld = false
+
+    fun setAttackTurboPeriod(period: Int) {
+        queueEvent {
+            attackTurboPeriod = period
+            attackTurboFrame = 0
+            syncAttackButton()
         }
+    }
+
+    private fun syncAttackButton() {
+        val held = dashAttackHeld || (physicalAttackHeld &&
+            (attackTurboBypassed || attackTurboPeriod == 0 || attackTurboFrame < attackTurboPeriod / 2))
+        if (held == sentAttackHeld) return
+        sentAttackHeld = held
+        LibretroDroid.onKeyEvent(0, if (held) KeyEvent.ACTION_DOWN else KeyEvent.ACTION_UP, attackKey)
+    }
+
+    private fun advanceAttackTurbo() {
+        if (!physicalAttackHeld || attackTurboBypassed || attackTurboPeriod == 0) return
+        syncAttackButton()
+        attackTurboFrame = (attackTurboFrame + 1) % attackTurboPeriod
+    }
+
+    private fun setDashAttack(held: Boolean) {
+        dashAttackHeld = held
+        syncAttackButton()
     }
 
     fun sendDirectionDoubleTap(keyCode: Int, attack: Boolean) {
@@ -60,20 +84,25 @@ source = source.replace(anchor, """    // These fields and the native input call
         }
     }
 
-    fun sendJoypadKeys(released: IntArray, pressed: IntArray) {
+    fun sendJoypadKeys(released: IntArray, pressed: IntArray, jumpHeld: Boolean) {
         queueEvent {
+            if (attackTurboBypassed != jumpHeld || attackKey in released || attackKey in pressed) {
+                attackTurboFrame = 0
+            }
+            attackTurboBypassed = jumpHeld
             if (released.any { it == dashDirection }) {
                 dashDirection = null
                 setDashAttack(false)
             }
             released.forEach {
                 if (it == attackKey) physicalAttackHeld = false
-                if (it != attackKey || !dashAttackHeld) LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_UP, it)
+                if (it != attackKey) LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_UP, it)
             }
             pressed.forEach {
                 if (it == attackKey) physicalAttackHeld = true
-                if (it != attackKey || !dashAttackHeld) LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_DOWN, it)
+                if (it != attackKey) LibretroDroid.onKeyEvent(0, KeyEvent.ACTION_DOWN, it)
             }
+            syncAttackButton()
         }
     }
 
@@ -86,7 +115,7 @@ source = source.replace(surface, """        if (isGameLoaded) {
         }""")
 frame = "                LibretroDroid.step(this@GLRetroView)"
 assert source.count(frame) == 1
-view.write_text(source.replace(frame, "                advanceDirectionDoubleTap()\n" + frame))
+view.write_text(source.replace(frame, "                advanceDirectionDoubleTap()\n                advanceAttackTurbo()\n" + frame))
 PY
 archive=$(mktemp)
 trap 'rm -f "$archive"' EXIT
